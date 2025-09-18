@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>VoxForge — Eleven Labs style TTS (Frontend + Proxy Instructions)</title>
+  <style>
+    /* Minimal reset */
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body,#app{height:100%}
+    body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial;color:#0f172a;background:linear-gradient(180deg,#0f172a 0%,#071129 100%);}
+
+    /* Layout */
+    .wrap{max-width:1100px;margin:40px auto;padding:28px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:16px;box-shadow:0 10px 30px rgba(2,6,23,0.6);backdrop-filter:blur(6px);}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,#7c3aed,#06b6d4);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px}
+    h1{font-size:20px;color:#e6eef8}
+    p.lead{color:#9fb3d1;margin-top:6px}
+
+    /* Controls */
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:20px}
+    .panel{background:linear-gradient(180deg,rgba(255,255,255,0.01),rgba(255,255,255,0.005));padding:18px;border-radius:12px}
+    textarea{width:100%;min-height:160px;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#cfe8ff;font-size:15px;resize:vertical}
+    label{display:block;font-size:13px;color:#9fb3d1;margin-bottom:6px}
+    select,input[type=file],input[type=text]{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#cfe8ff}
+    .row{display:flex;gap:12px;margin-top:12px}
+    .btn{padding:10px 14px;border-radius:10px;background:linear-gradient(90deg,#06b6d4,#7c3aed);color:white;border:none;cursor:pointer;box-shadow:0 6px 18px rgba(124,58,237,0.18);font-weight:600}
+    .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    .meta{font-size:13px;color:#8aa6c6;margin-top:10px}
+
+    /* Voice cards */
+    .voice-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+    .voice{padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);min-width:140px;background:linear-gradient(180deg,transparent,rgba(255,255,255,0.01));cursor:pointer;transition:transform .18s ease,box-shadow .18s}
+    .voice:hover{transform:translateY(-6px);box-shadow:0 12px 30px rgba(2,6,23,0.6)}
+    .voice.selected{outline:2px solid rgba(124,58,237,0.28)}
+
+    /* Player */
+    .player{display:flex;align-items:center;gap:12px;margin-top:12px}
+    .playbtn{width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#111827,#0b1220);border:1px solid rgba(255,255,255,0.03);cursor:pointer}
+
+    /* visualizer */
+    .vis{height:92px;background:linear-gradient(90deg,rgba(255,255,255,0.01),transparent);border-radius:8px;overflow:hidden;margin-top:12px}
+    canvas{width:100%;height:92px;display:block}
+
+    /* tiny footer */
+    .foot{font-size:12px;color:#6f9ab3;margin-top:8px}
+
+    /* animated background blobs */
+    .blobs{position:fixed;right:-120px;top:10vh;z-index:0;pointer-events:none}
+    .blob{width:420px;height:420px;border-radius:50%;filter:blur(50px);opacity:0.12;transform:translateY(0);animation:float 8s ease-in-out infinite}
+    .b1{background:radial-gradient(circle at 30% 20%,#06b6d4,#7c3aed)}
+    .b2{background:radial-gradient(circle at 70% 80%,#f97316,#ef4444);right:40px;top:220px;animation-duration:10s}
+    @keyframes float{0%{transform:translateY(0)}50%{transform:translateY(-30px) rotate(3deg)}100%{transform:translateY(0)}}
+
+    /* responsive */
+    @media (max-width:900px){.grid{grid-template-columns:1fr}.panel{padding:14px}}
+  </style>
+</head>
+<body>
+  <div class="blobs" aria-hidden>
+    <div class="blob b1"></div>
+    <div class="blob b2"></div>
+  </div>
+  <div class="wrap" id="app">
+    <header>
+      <div class="logo">Vx</div>
+      <div>
+        <h1>VoxForge — Beautiful Eleven Labs style TTS</h1>
+        <p class="lead">Advanced UI for Eleven Labs API (frontend + secure proxy recommended). Type, pick voice, play and download high-quality TTS.</p>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Left: controls -->
+      <section class="panel">
+        <label for="text">Text to speak</label>
+        <textarea id="text">Welcome to VoxForge — an Eleven Labs-like demo with a modern UI. Change the text, pick a voice and press Synthesize.</textarea>
+
+        <div class="row" style="margin-top:12px">
+          <div style="flex:1">
+            <label for="voice">Voice</label>
+            <select id="voice"></select>
+          </div>
+          <div style="width:140px">
+            <label for="stability">Stability</label>
+            <input id="stability" type="text" value="0.7" placeholder="0.0 - 1.0" />
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="btn" id="synth">Synthesize</button>
+          <button class="btn secondary" id="download">Download</button>
+          <button class="btn secondary" id="sample">Play sample</button>
+        </div>
+
+        <div class="meta">Proxy endpoint: <code id="proxy">/api/eleven</code> — For security, do not embed your API key in client code. See server instructions below.</div>
+
+        <div class="voice-list" id="voices"></div>
+
+        <div class="foot">Tip: run the included Express proxy locally to keep your Eleven Labs API key secret. The UI calls the proxy which forwards requests to Eleven Labs.</div>
+      </section>
+
+      <!-- Right: player + preview -->
+      <aside class="panel">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <label>Playback</label>
+            <div class="meta">Play generated audio and visualize waveform here.</div>
+          </div>
+          <div class="meta">Status: <strong id="status">idle</strong></div>
+        </div>
+
+        <div class="player">
+          <div class="playbtn" id="play"><svg id="playicon" width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 3v18l15-9L5 3z" fill="#cfe8ff" /></svg></div>
+          <div style="flex:1">
+            <div id="title">No audio yet</div>
+            <div class="meta">Duration: <span id="duration">0s</span></div>
+          </div>
+        </div>
+
+        <div class="vis"><canvas id="wave"></canvas></div>
+
+        <audio id="audio" hidden></audio>
+
+        <div style="margin-top:12px">
+          <label>Voice cloning (upload sample)</label>
+          <input type="file" id="voiceFile" accept="audio/*" />
+          <div class="meta">Upload an audio file to create a custom voice model (proxied server will forward to Eleven Labs if you enable voice cloning on their account).</div>
+        </div>
+
+      </aside>
+    </div>
+
+    <footer style="margin-top:16px;color:#6f9ab3;font-size:13px">Built with ❤️ — This is a demo. Remember to keep your Eleven Labs API key secret; never embed it in client-side code.</footer>
+
+    <!-- Server instructions & example proxy (copy into server.js).
+         IMPORTANT: Do NOT paste your Eleven Labs API key into browser code. Instead
+         put it into an environment variable ELEVEN_API_KEY on the server and run:
+
+         ELEVEN_API_KEY="your_key_here" node server.js
+
+         Minimal Express proxy example below (save as server.js):
+
+    */
+
+    <!--
+    // --- BEGIN server.js ---
+    const express = require('express');
+    const fetch = require('node-fetch'); // node 18+ has global fetch
+    const multer = require('multer');
+    const upload = multer();
+    const app = express();
+    app.use(express.json());
+
+    const ELEVEN_KEY = process.env.ELEVEN_API_KEY;
+    if(!ELEVEN_KEY){
+      console.error('Set ELEVEN_API_KEY environment variable');
+      process.exit(1);
+    }
+
+    // Simple TTS proxy
+    app.post('/api/eleven/tts', async (req, res) => {
+      try{
+        const {voice, text, stability} = req.body;
+        const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type':'application/json',
+            'xi-api-key': ELEVEN_KEY
+          },
+          body: JSON.stringify({
+            text, voice_settings: {stability: parseFloat(stability || 0.75)}
+          })
+        });
+        const arrayBuffer = await resp.arrayBuffer();
+        res.set('Content-Type','audio/mpeg');
+        res.send(Buffer.from(arrayBuffer));
+      }catch(e){console.error(e);res.status(500).json({error:e.message})}
+    });
+
+    // List voices proxy
+    app.get('/api/eleven/voices', async (req,res)=>{
+      const r = await fetch('https://api.elevenlabs.io/v1/voices',{headers:{'xi-api-key':ELEVEN_KEY}});
+      const data = await r.json();
+      res.json(data);
+    });
+
+    // Basic voice file upload proxy (for cloning) - multipart form
+    app.post('/api/eleven/clone', upload.single('file'), async (req,res)=>{
+      // Example: forward the file buffer to Eleven Labs endpoint for voice cloning
+      // See Eleven Labs docs for exact endpoint and required fields.
+      res.status(501).json({error:'Implement cloning per Eleven Labs docs; this is a proxy example.'});
+    });
+
+    app.listen(3000,()=>console.log('Proxy listening :3000'));
+    // --- END server.js ---
+    -->
+
+  </div>
+
+  <script>
+    // Frontend behavior. The front-end calls the proxy endpoints described above.
+    const proxyBase = '/api/eleven'; // Change if your server uses a different base
+    const voiceSelect = document.getElementById('voice');
+    const voicesDiv = document.getElementById('voices');
+    const synthBtn = document.getElementById('synth');
+    const downloadBtn = document.getElementById('download');
+    const sampleBtn = document.getElementById('sample');
+    const statusEl = document.getElementById('status');
+    const playBtn = document.getElementById('play');
+    const audioEl = document.getElementById('audio');
+    const textEl = document.getElementById('text');
+    const stabilityEl = document.getElementById('stability');
+    const durationEl = document.getElementById('duration');
+    const proxyEl = document.getElementById('proxy');
+
+    let currentAudioUrl = null;
+    let currentBuffer = null;
+    let audioCtx, analyser, sourceNode, dataArray;
+
+    function setStatus(t){statusEl.textContent = t}
+
+    async function fetchVoices(){
+      setStatus('loading voices');
+      try{
+        const res = await fetch(proxyBase + '/voices');
+        if(!res.ok) throw new Error('Failed to fetch voices');
+        const data = await res.json();
+        populateVoices(data);
+        setStatus('voices loaded');
+      }catch(err){console.error(err);setStatus('voices error')}
+    }
+
+    function populateVoices(data){
+      // data expected to be {voices: [...] } per Eleven Labs
+      const list = data.voices || data;
+      voiceSelect.innerHTML = '';
+      voicesDiv.innerHTML = '';
+      for(const v of list){
+        const opt = document.createElement('option'); opt.value = v.id || v.voice_id || v.name; opt.textContent = v.name || v.voice;
+        voiceSelect.appendChild(opt);
+
+        const card = document.createElement('div'); card.className = 'voice'; card.innerHTML = `<div style=\"font-weight:700;color:#cfe8ff\">${v.name}</div><div style=\"font-size:13px;color:#8aa6c6;margin-top:6px\">${v.preview?.length? 'Preview available' : (v.description || '')}</div>`;
+        card.onclick = ()=>{document.querySelectorAll('.voice').forEach(x=>x.classList.remove('selected'));card.classList.add('selected'); voiceSelect.value = opt.value}
+        voicesDiv.appendChild(card);
+      }
+    }
+
+    async function synthesize(download=false){
+      const voice = voiceSelect.value;
+      const text = textEl.value;
+      const stability = parseFloat(stabilityEl.value || 0.75);
+      if(!voice){alert('Pick a voice');return}
+      setStatus('synthesizing...');
+      try{
+        const resp = await fetch(proxyBase + '/tts', {
+          method: 'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({voice, text, stability})
+        });
+        if(!resp.ok){const t=await resp.text(); throw new Error(t || 'synthesis failed')}
+        const blob = await resp.blob();
+        if(currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
+        currentAudioUrl = URL.createObjectURL(blob);
+        audioEl.src = currentAudioUrl; audioEl.hidden = false;
+        setStatus('ready');
+        // get duration once loaded
+        audioEl.onloadedmetadata = ()=>{durationEl.textContent = Math.round(audioEl.duration)+'s'}
+        // if user chosen download, trigger download
+        if(download){
+          const a = document.createElement('a'); a.href = currentAudioUrl; a.download = 'voxforge_tts.mp3'; document.body.appendChild(a); a.click(); a.remove();
+        }
+        // analyze audio for waveform
+        const arrayBuffer = await blob.arrayBuffer();
+        decodeAndVisualize(arrayBuffer);
+      }catch(err){console.error(err);setStatus('error');alert('Synthesis error: '+err.message)}
+    }
+
+    function decodeAndVisualize(arrayBuffer){
+      if(!window.AudioContext) return;
+      if(!audioCtx) audioCtx = new AudioContext();
+      audioCtx.decodeAudioData(arrayBuffer.slice(0), (buffer)=>{
+        currentBuffer = buffer;
+        startVisualizer(buffer);
+      }, (e)=>console.error('decode error',e));
+    }
+
+    function startVisualizer(buffer){
+      // stop existing
+      if(analyser){try{analyser.disconnect()}catch(e){}
+      }
+      if(sourceNode){try{sourceNode.disconnect()}catch(e){}}
+      analyser = audioCtx.createAnalyser(); analyser.fftSize = 2048; const canvas = document.getElementById('wave'); const ctx = canvas.getContext('2d');
+      const WIDTH = canvas.width = canvas.clientWidth * devicePixelRatio; const HEIGHT = canvas.height = canvas.clientHeight * devicePixelRatio;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      sourceNode = audioCtx.createBufferSource(); sourceNode.buffer = buffer; sourceNode.connect(analyser); analyser.connect(audioCtx.destination);
+      sourceNode.start();
+      setStatus('playing (visualizing)');
+
+      function draw(){
+        requestAnimationFrame(draw);
+        analyser.getByteTimeDomainData(dataArray);
+        ctx.clearRect(0,0,WIDTH,HEIGHT);
+        ctx.lineWidth = 2*devicePixelRatio; ctx.beginPath();
+        const sliceWidth = WIDTH / dataArray.length; let x=0;
+        for(let i=0;i<dataArray.length;i++){
+          const v = dataArray[i]/128.0; const y = v * HEIGHT/2;
+          if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+          x += sliceWidth;
+        }
+        ctx.strokeStyle = 'rgba(207,232,255,0.9)'; ctx.stroke();
+      }
+      draw();
+      // stop after duration
+      setTimeout(()=>{ try{sourceNode.stop()}catch(e){} setStatus('ready') }, Math.floor(buffer.duration*1000)+500);
+    }
+
+    // UI events
+    synthBtn.onclick = ()=>synthesize(false);
+    downloadBtn.onclick = ()=>synthesize(true);
+    sampleBtn.onclick = ()=>{textEl.value='Hello — this is a friendly sample from VoxForge.'; synthesize(false)};
+
+    playBtn.onclick = ()=>{ if(!audioEl.src){alert('No audio generated yet.'); return} audioEl.paused?audioEl.play():audioEl.pause(); }
+    audioEl.onplay = ()=>{document.getElementById('playicon').innerHTML=''; setStatus('playing');}
+    audioEl.onpause = ()=>{document.getElementById('playicon').innerHTML=''; setStatus('paused');}
+
+    // initialize
+    (async ()=>{
+      proxyEl.textContent = proxyBase;
+      await fetchVoices();
+    })();
+
+  </script>
+</body>
+</html>
